@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "license": "BSD",
   "summary": "An open source iOS framework for GPU-based image and video processing.",
-  "homepage": "https://github.com/BradLarson/GPUImage2",
+  "homepage": "https://github.com/zsthomas/GPUImage2",
   "authors": {
     "Brad Larson": "contact@sunsetlakesoftware.com"
   },
   "source": {
-    "git": "https://github.com/BradLarson/GPUImage2.git",
+    "git": "https://github.com/zsthomas/GPUImage2.git",
     "branch": "master"
   },
   "source_files": "framework/Source/**/*.{swift}",
