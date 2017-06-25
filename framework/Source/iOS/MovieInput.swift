@@ -3,6 +3,22 @@ import AVFoundation
 public class MovieInput: ImageSource {
     public let targets = TargetContainer()
     public var runBenchmark = false
+    public var playSound = true
+    
+    public var audioEncodingTarget:AudioEncodingTarget? {
+        didSet {
+            guard let audioEncodingTarget = audioEncodingTarget else {
+                //                self.removeAudioInputsAndOutputs()
+                return
+            }
+            do {
+                //                try self.addAudioInputsAndOutputs()
+                audioEncodingTarget.activateAudioTrack()
+            } catch {
+                fatalError("ERROR: Could not connect audio target with error: \(error)")
+            }
+        }
+    }
     
     let yuvConversionShader:ShaderProgram
     let asset:AVAsset
@@ -10,12 +26,13 @@ public class MovieInput: ImageSource {
     let playAtActualSpeed:Bool
     let loop:Bool
     var videoEncodingIsFinished = false
+    var audioEncodingIsFinished = false
     var previousFrameTime = kCMTimeZero
     var previousActualFrameTime = CFAbsoluteTimeGetCurrent()
-
+    
     var numberOfFramesCaptured = 0
     var totalFrameTimeDuringCapture:Double = 0.0
-
+    
     // TODO: Add movie reader synchronization
     // TODO: Someone will have to add back in the AVPlayerItem logic, because I don't know how that works
     public init(asset:AVAsset, playAtActualSpeed:Bool = false, loop:Bool = false) throws {
@@ -32,21 +49,21 @@ public class MovieInput: ImageSource {
         assetReader.add(readerVideoTrackOutput)
         // TODO: Audio here
     }
-
+    
     public convenience init(url:URL, playAtActualSpeed:Bool = false, loop:Bool = false) throws {
         let inputOptions = [AVURLAssetPreferPreciseDurationAndTimingKey:NSNumber(value:true)]
         let inputAsset = AVURLAsset(url:url, options:inputOptions)
         try self.init(asset:inputAsset, playAtActualSpeed:playAtActualSpeed, loop:loop)
     }
-
+    
     // MARK: -
     // MARK: Playback control
-
+    
     public func start() {
         asset.loadValuesAsynchronously(forKeys:["tracks"], completionHandler:{
             DispatchQueue.global(priority:DispatchQueue.GlobalQueuePriority.default).async(execute: {
                 guard (self.asset.statusOfValue(forKey: "tracks", error:nil) == .loaded) else { return }
-
+                
                 guard self.assetReader.startReading() else {
                     print("Couldn't start reading")
                     return
@@ -108,7 +125,7 @@ public class MovieInput: ImageSource {
                     previousFrameTime = currentSampleTime
                     previousActualFrameTime = CFAbsoluteTimeGetCurrent()
                 }
-
+                
                 sharedImageProcessingContext.runOperationSynchronously{
                     self.process(movieFrame:sampleBuffer)
                     CMSampleBufferInvalidate(sampleBuffer)
@@ -122,19 +139,47 @@ public class MovieInput: ImageSource {
                 }
             }
         }
-//        else if (synchronizedMovieWriter != nil) {
-//            if (assetReader.status == .Completed) {
-//                self.endProcessing()
-//            }
-//        }
-
+        //        else if (synchronizedMovieWriter != nil) {
+        //            if (assetReader.status == .Completed) {
+        //                self.endProcessing()
+        //            }
+        //        }
+        
     }
+    
+    func readNextAudioFrame(from audioTrackOutput:AVAssetReaderOutput) {
+        if ((assetReader.status == .reading) && !audioEncodingIsFinished) {
+            if let sampleBuffer = audioTrackOutput.copyNextSampleBuffer() {
+                
+                if (self.playSound){
+                    
+                    DispatchQueue.global(priority:DispatchQueue.GlobalQueuePriority.default).async(execute: {
+//                        audioPlayer.copyBuffer(audioSampleBufferRef)
+                        
+                        CMSampleBufferInvalidate(sampleBuffer)
+                        })
+                    
+                } else if let audioEncodingTarget = self.audioEncodingTarget, !audioEncodingIsFinished {
+                    audioEncodingTarget.processAudioBuffer(sampleBuffer)
+                    CMSampleBufferInvalidate(sampleBuffer)
+                }
+                
+            } else {
+                audioEncodingIsFinished = true
+            }
+        }
+    }
+    
+    func processAudioSampleBuffer(_ sampleBuffer:CMSampleBuffer) {
+        self.audioEncodingTarget?.processAudioBuffer(sampleBuffer)
+    }
+    
     
     func process(movieFrame frame:CMSampleBuffer) {
         let currentSampleTime = CMSampleBufferGetOutputPresentationTimeStamp(frame)
         let movieFrame = CMSampleBufferGetImageBuffer(frame)!
-    
-//        processingFrameTime = currentSampleTime
+        
+        //        processingFrameTime = currentSampleTime
         self.process(movieFrame:movieFrame, withSampleTime:currentSampleTime)
     }
     
@@ -142,21 +187,21 @@ public class MovieInput: ImageSource {
         let bufferHeight = CVPixelBufferGetHeight(movieFrame)
         let bufferWidth = CVPixelBufferGetWidth(movieFrame)
         CVPixelBufferLockBaseAddress(movieFrame, CVPixelBufferLockFlags(rawValue:CVOptionFlags(0)))
-
+        
         let conversionMatrix = colorConversionMatrix601FullRangeDefault
         // TODO: Get this color query working
-//        if let colorAttachments = CVBufferGetAttachment(movieFrame, kCVImageBufferYCbCrMatrixKey, nil) {
-//            if(CFStringCompare(colorAttachments, kCVImageBufferYCbCrMatrix_ITU_R_601_4, 0) == .EqualTo) {
-//                _preferredConversion = kColorConversion601FullRange
-//            } else {
-//                _preferredConversion = kColorConversion709
-//            }
-//        } else {
-//            _preferredConversion = kColorConversion601FullRange
-//        }
+        //        if let colorAttachments = CVBufferGetAttachment(movieFrame, kCVImageBufferYCbCrMatrixKey, nil) {
+        //            if(CFStringCompare(colorAttachments, kCVImageBufferYCbCrMatrix_ITU_R_601_4, 0) == .EqualTo) {
+        //                _preferredConversion = kColorConversion601FullRange
+        //            } else {
+        //                _preferredConversion = kColorConversion709
+        //            }
+        //        } else {
+        //            _preferredConversion = kColorConversion601FullRange
+        //        }
         
         let startTime = CFAbsoluteTimeGetCurrent()
-
+        
         let luminanceFramebuffer = sharedImageProcessingContext.framebufferCache.requestFramebufferWithProperties(orientation:.portrait, size:GLSize(width:GLint(bufferWidth), height:GLint(bufferHeight)), textureOnly:true)
         luminanceFramebuffer.lock()
         glActiveTexture(GLenum(GL_TEXTURE0))
@@ -173,7 +218,7 @@ public class MovieInput: ImageSource {
         
         convertYUVToRGB(shader:self.yuvConversionShader, luminanceFramebuffer:luminanceFramebuffer, chrominanceFramebuffer:chrominanceFramebuffer, resultFramebuffer:movieFramebuffer, colorConversionMatrix:conversionMatrix)
         CVPixelBufferUnlockBaseAddress(movieFrame, CVPixelBufferLockFlags(rawValue:CVOptionFlags(0)))
-
+        
         movieFramebuffer.timingStyle = .videoFrame(timestamp:Timestamp(withSampleTime))
         self.updateTargetsWithFramebuffer(movieFramebuffer)
         
@@ -185,7 +230,7 @@ public class MovieInput: ImageSource {
             print("Current frame time : \(1000.0 * currentFrameTime) ms")
         }
     }
-
+    
     public func transmitPreviousImage(to target:ImageConsumer, atIndex:UInt) {
         // Not needed for movie inputs
     }

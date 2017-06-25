@@ -21,5 +21,5 @@ void main()
     
     //     float blendValue = 1.0 - smoothstep(thresholdSensitivity - smoothing, thresholdSensitivity , abs(Cr - maskCr) + abs(Cb - maskCb));
     float blendValue = smoothstep(thresholdSensitivity, thresholdSensitivity + smoothing, distance(vec2(Cr, Cb), vec2(maskCr, maskCb)));
-    gl_FragColor = vec4(textureColor.rgb, textureColor.a * blendValue);
+    gl_FragColor = vec4(textureColor.rgb * blendValue, 1.0 * blendValue);
 }
