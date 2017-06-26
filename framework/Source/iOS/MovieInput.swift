@@ -7,16 +7,8 @@ public class MovieInput: ImageSource {
     
     public var audioEncodingTarget:AudioEncodingTarget? {
         didSet {
-            guard let audioEncodingTarget = audioEncodingTarget else {
-                //                self.removeAudioInputsAndOutputs()
-                return
-            }
-            do {
-                //                try self.addAudioInputsAndOutputs()
-                audioEncodingTarget.activateAudioTrack()
-            } catch {
-                fatalError("ERROR: Could not connect audio target with error: \(error)")
-            }
+            guard let audioEncodingTarget = audioEncodingTarget else { return }
+            audioEncodingTarget.activateAudioTrack()
         }
     }
     
@@ -29,6 +21,8 @@ public class MovieInput: ImageSource {
     var audioEncodingIsFinished = false
     var previousFrameTime = kCMTimeZero
     var previousActualFrameTime = CFAbsoluteTimeGetCurrent()
+    var shouldPlayAudio = false
+    var shouldRecordAudioTrack = false
     
     var numberOfFramesCaptured = 0
     var totalFrameTimeDuringCapture:Double = 0.0
@@ -47,7 +41,36 @@ public class MovieInput: ImageSource {
         let readerVideoTrackOutput = AVAssetReaderTrackOutput(track:self.asset.tracks(withMediaType: AVMediaTypeVideo)[0], outputSettings:outputSettings)
         readerVideoTrackOutput.alwaysCopiesSampleData = false
         assetReader.add(readerVideoTrackOutput)
-        // TODO: Audio here
+        
+        let audioTracks = self.asset.tracks(withMediaType: AVMediaTypeAudio)
+        let hasAudioTraks = audioTracks.count > 0
+        shouldPlayAudio = hasAudioTraks && self.playSound
+        shouldRecordAudioTrack = (hasAudioTraks && (self.audioEncodingTarget != nil))
+        
+        if (shouldRecordAudioTrack || shouldPlayAudio){
+            audioEncodingIsFinished = false
+            
+            // This might need to be extended to handle movies with more than one audio track
+            let audioTrack = audioTracks[0]
+            var audioReadSettings = [String:Any]()
+                audioReadSettings[AVFormatIDKey] = NSNumber(value:kAudioFormatLinearPCM)
+                audioReadSettings[AVSampleRateKey] = NSNumber(value:44100.0)
+                audioReadSettings[AVLinearPCMBitDepthKey] = NSNumber(value:16)
+                audioReadSettings[AVLinearPCMIsNonInterleaved] = NSNumber(value:false)
+                audioReadSettings[AVLinearPCMIsFloatKey] = NSNumber(value:false)
+                audioReadSettings[AVLinearPCMIsBigEndianKey] = NSNumber(value:false)
+            
+            let readerAudioTrackOutput = AVAssetReaderTrackOutput(track:audioTrack, outputSettings:audioReadSettings)
+            assetReader.add(readerAudioTrackOutput)
+            
+            if (shouldPlayAudio){
+//                if (audioPlayer == nil) {
+//                    audioPlayer = GPUImageAudioPlayer()
+//                    audioPlayer.initAudio()
+//                    audioPlayer.startPlaying()
+//                }
+            }
+        }
     }
     
     public convenience init(url:URL, playAtActualSpeed:Bool = false, loop:Bool = false) throws {
@@ -69,16 +92,17 @@ public class MovieInput: ImageSource {
                     return
                 }
                 
-                var readerVideoTrackOutput:AVAssetReaderOutput? = nil;
+                let readerVideoTrackOutput = self.assetReader.outputs.filter({ $0.mediaType == AVMediaTypeVideo }).first!
+                let readerAudioTrackOutput = self.assetReader.outputs.filter({ $0.mediaType == AVMediaTypeAudio }).first
                 
-                for output in self.assetReader.outputs {
-                    if(output.mediaType == AVMediaTypeVideo) {
-                        readerVideoTrackOutput = output;
-                    }
-                }
                 
                 while (self.assetReader.status == .reading) {
-                    self.readNextVideoFrame(from:readerVideoTrackOutput!)
+                    self.readNextVideoFrame(from:readerVideoTrackOutput, audioTrackOutput: readerAudioTrackOutput!)
+                    
+//                    if !audioEncodingIsFinished && (shouldPlayAudio && audioPlayer.readyForMoreBytes) || shouldRecordAudioTrack {
+                    if !self.audioEncodingIsFinished && ((self.shouldPlayAudio ) || self.shouldRecordAudioTrack) {
+                        self.readNextAudioFrame(from:readerAudioTrackOutput!)
+                    }
                 }
                 
                 if (self.assetReader.status == .completed) {
@@ -106,7 +130,7 @@ public class MovieInput: ImageSource {
     // MARK: -
     // MARK: Internal processing functions
     
-    func readNextVideoFrame(from videoTrackOutput:AVAssetReaderOutput) {
+    func readNextVideoFrame(from videoTrackOutput:AVAssetReaderOutput, audioTrackOutput: AVAssetReaderOutput) {
         if ((assetReader.status == .reading) && !videoEncodingIsFinished) {
             if let sampleBuffer = videoTrackOutput.copyNextSampleBuffer() {
                 if (playAtActualSpeed) {
@@ -151,17 +175,18 @@ public class MovieInput: ImageSource {
         if ((assetReader.status == .reading) && !audioEncodingIsFinished) {
             if let sampleBuffer = audioTrackOutput.copyNextSampleBuffer() {
                 
-                if (self.playSound){
-                    
-                    DispatchQueue.global(priority:DispatchQueue.GlobalQueuePriority.default).async(execute: {
-//                        audioPlayer.copyBuffer(audioSampleBufferRef)
-                        
+                //                if self.playSound {
+                //                    DispatchQueue.global(priority:DispatchQueue.GlobalQueuePriority.default).async(execute: {
+                //                      audioPlayer.copyBuffer(audioSampleBufferRef)
+                //                    CMSampleBufferInvalidate(sampleBuffer)
+                //                    })
+                //                }
+                
+                if let audioEncodingTarget = self.audioEncodingTarget {
+                    sharedImageProcessingContext.runOperationSynchronously{
+                        audioEncodingTarget.processAudioBuffer(sampleBuffer)
                         CMSampleBufferInvalidate(sampleBuffer)
-                        })
-                    
-                } else if let audioEncodingTarget = self.audioEncodingTarget, !audioEncodingIsFinished {
-                    audioEncodingTarget.processAudioBuffer(sampleBuffer)
-                    CMSampleBufferInvalidate(sampleBuffer)
+                    }
                 }
                 
             } else {
@@ -169,11 +194,6 @@ public class MovieInput: ImageSource {
             }
         }
     }
-    
-    func processAudioSampleBuffer(_ sampleBuffer:CMSampleBuffer) {
-        self.audioEncodingTarget?.processAudioBuffer(sampleBuffer)
-    }
-    
     
     func process(movieFrame frame:CMSampleBuffer) {
         let currentSampleTime = CMSampleBufferGetOutputPresentationTimeStamp(frame)
