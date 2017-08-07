@@ -11,8 +11,8 @@ public enum PhysicalCameraLocation {
     // Documentation: "The front-facing camera would always deliver buffers in AVCaptureVideoOrientationLandscapeLeft and the back-facing camera would always deliver buffers in AVCaptureVideoOrientationLandscapeRight."
     func imageOrientation() -> ImageOrientation {
         switch self {
-            case .backFacing: return .portrait
-            case .frontFacing: return .portrait
+            case .backFacing: return .landscapeRight
+            case .frontFacing: return .landscapeRight
         }
     }
     
