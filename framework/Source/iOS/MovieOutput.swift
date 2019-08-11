@@ -5,6 +5,16 @@ public protocol AudioEncodingTarget {
     func processAudioBuffer(_ sampleBuffer:CMSampleBuffer)
 }
 
+//// Helper function inserted by Swift 4.2 migrator.
+//static func convertFromAVFileType(_ input: AVFileType) -> String {
+//    return input.rawValue
+//}
+//
+//// Helper function inserted by Swift 4.2 migrator.
+//static func convertToAVFileType(_ input: String) -> AVFileType {
+//    return AVFileType(rawValue: input)
+//}
+
 public class MovieOutput: ImageConsumer, AudioEncodingTarget {
     public let sources = SourceContainer()
     public let maximumInputs:UInt = 1
@@ -18,16 +28,16 @@ public class MovieOutput: ImageConsumer, AudioEncodingTarget {
     private var videoEncodingIsFinished = false
     private var audioEncodingIsFinished = false
     private var startTime:CMTime?
-    private var previousFrameTime = kCMTimeNegativeInfinity
-    private var previousAudioTime = kCMTimeNegativeInfinity
+    private var previousFrameTime = CMTime.negativeInfinity
+    private var previousAudioTime = CMTime.negativeInfinity
     private var encodingLiveVideo:Bool
-    
-    public init(URL:Foundation.URL, size:Size, fileType:String = AVFileTypeQuickTimeMovie, liveVideo:Bool = false, settings:[String:AnyObject]? = nil) throws {
+
+    public init(URL:Foundation.URL, size:Size, fileType:String = AVFileType.mov.rawValue, liveVideo:Bool = false, settings:[String:AnyObject]? = nil) throws {
         self.size = size
-        assetWriter = try AVAssetWriter(url:URL, fileType:fileType)
+        assetWriter = try AVAssetWriter(url:URL, fileType:AVFileType(rawValue: fileType))
         
         // Set this to make sure that a functional movie is produced, even if the recording is cut off mid-stream. Only the last second should be lost in that case.
-        assetWriter.movieFragmentInterval = CMTimeMakeWithSeconds(1.0, 1000)
+        assetWriter.movieFragmentInterval = CMTimeMakeWithSeconds(1.0, preferredTimescale: 1000)
         
         var localSettings:[String:AnyObject]
         if let settings = settings {
@@ -40,7 +50,7 @@ public class MovieOutput: ImageConsumer, AudioEncodingTarget {
         localSettings[AVVideoHeightKey] = localSettings[AVVideoHeightKey] ?? NSNumber(value:size.height)
         localSettings[AVVideoCodecKey] =  localSettings[AVVideoCodecKey] ?? AVVideoCodecH264 as NSString
         
-        assetWriterVideoInput = AVAssetWriterInput(mediaType:AVMediaTypeVideo, outputSettings:localSettings)
+        assetWriterVideoInput = AVAssetWriterInput(mediaType:AVMediaType.video, outputSettings:localSettings)
         assetWriterVideoInput.expectsMediaDataInRealTime = liveVideo
         encodingLiveVideo = liveVideo
         
@@ -165,7 +175,7 @@ public class MovieOutput: ImageConsumer, AudioEncodingTarget {
         let outputSettings: [String : Any] = [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 48000, AVNumberOfChannelsKey: 1,AVEncoderBitRateKey: 96000]
         
         
-        assetWriterAudioInput = AVAssetWriterInput(mediaType:AVMediaTypeAudio, outputSettings: outputSettings)
+        assetWriterAudioInput = AVAssetWriterInput(mediaType:AVMediaType.audio, outputSettings: outputSettings)
         assetWriterAudioInput?.expectsMediaDataInRealTime = encodingLiveVideo
         
         if assetWriter.canAdd(assetWriterAudioInput!) {
@@ -220,7 +230,7 @@ public class MovieOutput: ImageConsumer, AudioEncodingTarget {
         
         public var asCMTime:CMTime {
             get {
-                return CMTimeMakeWithEpoch(value, timescale, epoch)
+                return CMTimeMakeWithEpoch(value: value, timescale: timescale, epoch: epoch)
             }
         }
 }

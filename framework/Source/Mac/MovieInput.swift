@@ -10,7 +10,7 @@ public class MovieInput: ImageSource {
     let playAtActualSpeed:Bool
     let loop:Bool
     var videoEncodingIsFinished = false
-    var previousFrameTime = kCMTimeZero
+    var previousFrameTime = CMTime.zero
     var previousActualFrameTime = CFAbsoluteTimeGetCurrent()
 
     var numberOfFramesCaptured = 0
@@ -27,7 +27,7 @@ public class MovieInput: ImageSource {
         assetReader = try AVAssetReader(asset:self.asset)
         
         let outputSettings:[String:AnyObject] = [(kCVPixelBufferPixelFormatTypeKey as String):NSNumber(value:Int32(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange))]
-        let readerVideoTrackOutput = AVAssetReaderTrackOutput(track:self.asset.tracks(withMediaType: AVMediaTypeVideo)[0], outputSettings:outputSettings)
+        let readerVideoTrackOutput = AVAssetReaderTrackOutput(track:self.asset.tracks(withMediaType: AVMediaType.video)[0], outputSettings:outputSettings)
         readerVideoTrackOutput.alwaysCopiesSampleData = false
         assetReader.add(readerVideoTrackOutput)
         // TODO: Audio here
@@ -55,7 +55,7 @@ public class MovieInput: ImageSource {
                 var readerVideoTrackOutput:AVAssetReaderOutput? = nil;
                 
                 for output in self.assetReader.outputs {
-                    if(output.mediaType == AVMediaTypeVideo) {
+                    if(convertFromAVMediaType(output.mediaType) == convertFromAVMediaType(AVMediaType.video)) {
                         readerVideoTrackOutput = output;
                     }
                 }
@@ -189,4 +189,9 @@ public class MovieInput: ImageSource {
     public func transmitPreviousImage(to target:ImageConsumer, atIndex:UInt) {
         // Not needed for movie inputs
     }
+}
+
+// Helper function inserted by Swift 4.2 migrator.
+fileprivate func convertFromAVMediaType(_ input: AVMediaType) -> String {
+	return input.rawValue
 }

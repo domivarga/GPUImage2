@@ -81,8 +81,8 @@ public class PictureOutput: ImageConsumer {
             let bitmapRepresentation = NSBitmapImageRep(cgImage:cgImageFromBytes)
             let imageData:Data
             switch encodedImageFormat {
-                case .png: imageData = bitmapRepresentation.representation(using: .PNG, properties: ["":""])!
-                case .jpeg: imageData = bitmapRepresentation.representation(using: .JPEG, properties: ["":""])!
+                case .png: imageData = bitmapRepresentation.representation(using: .png, properties: convertToNSBitmapImageRepPropertyKeyDictionary(["":""]))!
+                case .jpeg: imageData = bitmapRepresentation.representation(using: .jpeg, properties: convertToNSBitmapImageRepPropertyKeyDictionary(["":""]))!
             }
 
             imageCallback(imageData)
@@ -128,4 +128,9 @@ func dataProviderReleaseCallback(_ context:UnsafeMutableRawPointer?, data:Unsafe
 //    UnsafeMutablePointer<UInt8>(data).deallocate(capacity:size)
     // FIXME: Verify this is correct
     data.deallocate(bytes:size, alignedTo:1)
+}
+
+// Helper function inserted by Swift 4.2 migrator.
+fileprivate func convertToNSBitmapImageRepPropertyKeyDictionary(_ input: [String: Any]) -> [NSBitmapImageRep.PropertyKey: Any] {
+	return Dictionary(uniqueKeysWithValues: input.map { key, value in (NSBitmapImageRep.PropertyKey(rawValue: key), value)})
 }

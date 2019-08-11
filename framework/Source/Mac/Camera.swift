@@ -44,7 +44,7 @@ public class Camera: NSObject, ImageSource, AVCaptureVideoDataOutputSampleBuffer
     var lastCheckTime = CFAbsoluteTimeGetCurrent()
 
     public init(sessionPreset:String, cameraDevice:AVCaptureDevice? = nil, orientation:ImageOrientation = .portrait, captureAsYUV:Bool = true) throws {
-        self.inputCamera = cameraDevice ?? AVCaptureDevice.defaultDevice(withMediaType:AVMediaTypeVideo)
+        self.inputCamera = cameraDevice ?? AVCaptureDevice.default(for:AVMediaType(rawValue: convertFromAVMediaType(AVMediaType.video)))
         self.orientation = orientation
         self.captureAsYUV = captureAsYUV
         
@@ -79,20 +79,20 @@ public class Camera: NSObject, ImageSource, AVCaptureVideoDataOutputSampleBuffer
             
             if (supportsFullYUVRange) {
                 yuvConversionShader = crashOnShaderCompileFailure("Camera"){try sharedImageProcessingContext.programForVertexShader(defaultVertexShaderForInputs(2), fragmentShader:YUVConversionFullRangeFragmentShader)}
-                videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as AnyHashable:NSNumber(value:Int32(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange))]
+                videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as AnyHashable:NSNumber(value:Int32(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange))] as! [String : Any]
             } else {
                 yuvConversionShader = crashOnShaderCompileFailure("Camera"){try sharedImageProcessingContext.programForVertexShader(defaultVertexShaderForInputs(2), fragmentShader:YUVConversionVideoRangeFragmentShader)}
-                videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as AnyHashable:NSNumber(value:Int32(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange))]
+                videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as AnyHashable:NSNumber(value:Int32(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange))] as! [String : Any]
             }
         } else {
             yuvConversionShader = nil
-            videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as AnyHashable:NSNumber(value:Int32(kCVPixelFormatType_32BGRA))]
+            videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as AnyHashable:NSNumber(value:Int32(kCVPixelFormatType_32BGRA))] as! [String : Any]
         }
 
         if (captureSession.canAddOutput(videoOutput)) {
             captureSession.addOutput(videoOutput)
         }
-        captureSession.sessionPreset = sessionPreset
+        captureSession.sessionPreset = AVCaptureSession.Preset(rawValue: sessionPreset)
         captureSession.commitConfiguration()
 
         super.init()
@@ -108,7 +108,7 @@ public class Camera: NSObject, ImageSource, AVCaptureVideoDataOutputSampleBuffer
         }
     }
 
-    public func captureOutput(_ captureOutput:AVCaptureOutput!, didOutputSampleBuffer sampleBuffer:CMSampleBuffer!, from connection:AVCaptureConnection!) {
+    public func captureOutput(_ captureOutput:AVCaptureOutput, didOutput sampleBuffer:CMSampleBuffer, from connection:AVCaptureConnection) {
         guard (captureOutput != audioOutput) else {
             self.processAudioSampleBuffer(sampleBuffer)
             return
@@ -214,7 +214,7 @@ public class Camera: NSObject, ImageSource, AVCaptureVideoDataOutputSampleBuffer
         defer {
             captureSession.commitConfiguration()
         }
-        microphone = AVCaptureDevice.defaultDevice(withMediaType: AVMediaTypeAudio)
+        microphone = AVCaptureDevice.default(for: AVMediaType(rawValue: convertFromAVMediaType(AVMediaType.audio)))
         audioInput = try AVCaptureDeviceInput(device:microphone)
         if captureSession.canAddInput(audioInput) {
             captureSession.addInput(audioInput)
@@ -241,4 +241,9 @@ public class Camera: NSObject, ImageSource, AVCaptureVideoDataOutputSampleBuffer
     func processAudioSampleBuffer(_ sampleBuffer:CMSampleBuffer) {
         self.audioEncodingTarget?.processAudioBuffer(sampleBuffer)
     }
+}
+
+// Helper function inserted by Swift 4.2 migrator.
+fileprivate func convertFromAVMediaType(_ input: AVMediaType) -> String {
+	return input.rawValue
 }

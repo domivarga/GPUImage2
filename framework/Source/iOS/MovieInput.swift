@@ -19,7 +19,7 @@ public class MovieInput: ImageSource {
     let loop:Bool
     var videoEncodingIsFinished = false
     var audioEncodingIsFinished = false
-    var previousFrameTime = kCMTimeZero
+    var previousFrameTime = CMTime.zero
     var previousActualFrameTime = CFAbsoluteTimeGetCurrent()
     var shouldPlayAudio = false
     var shouldRecordAudioTrack = false
@@ -38,11 +38,11 @@ public class MovieInput: ImageSource {
         assetReader = try AVAssetReader(asset:self.asset)
         
         let outputSettings:[String:AnyObject] = [(kCVPixelBufferPixelFormatTypeKey as String):NSNumber(value:Int32(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange))]
-        let readerVideoTrackOutput = AVAssetReaderTrackOutput(track:self.asset.tracks(withMediaType: AVMediaTypeVideo)[0], outputSettings:outputSettings)
+        let readerVideoTrackOutput = AVAssetReaderTrackOutput(track:self.asset.tracks(withMediaType: AVMediaType.video)[0], outputSettings:outputSettings)
         readerVideoTrackOutput.alwaysCopiesSampleData = false
         assetReader.add(readerVideoTrackOutput)
         
-        let audioTracks = self.asset.tracks(withMediaType: AVMediaTypeAudio)
+        let audioTracks = self.asset.tracks(withMediaType: AVMediaType.audio)
         let hasAudioTraks = audioTracks.count > 0
         shouldPlayAudio = hasAudioTraks && self.playSound
         shouldRecordAudioTrack = (hasAudioTraks && (self.audioEncodingTarget != nil))
@@ -92,8 +92,8 @@ public class MovieInput: ImageSource {
                     return
                 }
                 
-                let readerVideoTrackOutput = self.assetReader.outputs.filter({ $0.mediaType == AVMediaTypeVideo }).first!
-                let readerAudioTrackOutput = self.assetReader.outputs.filter({ $0.mediaType == AVMediaTypeAudio }).first
+                let readerVideoTrackOutput = self.assetReader.outputs.filter({ convertFromAVMediaType($0.mediaType) == convertFromAVMediaType(AVMediaType.video) }).first!
+                let readerAudioTrackOutput = self.assetReader.outputs.filter({ convertFromAVMediaType($0.mediaType) == convertFromAVMediaType(AVMediaType.audio) }).first
                 
                 
                 while (self.assetReader.status == .reading) {
@@ -254,4 +254,9 @@ public class MovieInput: ImageSource {
     public func transmitPreviousImage(to target:ImageConsumer, atIndex:UInt) {
         // Not needed for movie inputs
     }
+}
+
+// Helper function inserted by Swift 4.2 migrator.
+fileprivate func convertFromAVMediaType(_ input: AVMediaType) -> String {
+	return input.rawValue
 }
